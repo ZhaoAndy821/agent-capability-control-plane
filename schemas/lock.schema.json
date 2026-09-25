@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "sources"
+  ],
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "sources": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 96,
+        "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|$))[a-z0-9](?:[a-z0-9._-]{0,94}[a-z0-9_-])?$",
+        "not": {
+          "pattern": "\\s"
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "repo",
+          "commit",
+          "deploy_path",
+          "evidence",
+          "evidence_sha256",
+          "approval"
+        ],
+        "properties": {
+          "repo": {
+            "$ref": "#/$defs/text"
+          },
+          "commit": {
+            "type": "string",
+            "minLength": 40,
+            "maxLength": 40,
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "deploy_path": {
+            "$ref": "#/$defs/text"
+          },
+          "evidence": {
+            "$ref": "#/$defs/text"
+          },
+          "evidence_sha256": {
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "approval": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "partial_or_conditional": {
+                "type": "boolean"
+              },
+              "high_risk": {
+                "type": "boolean"
+              },
+              "approved_at": {
+                "$ref": "#/$defs/text"
+              }
+            },
+            "description": "Missing authorization keys mean false; present keys must be literal JSON booleans. approved_at is informational, not authorization."
+          },
+          "binding": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schema_version",
+              "candidate_sha256"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "integer",
+                "const": 1
+              },
+              "candidate_sha256": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Six-field historical records remain representable. F06 operational binding requires binding version1 and exact current catalog/evidence/candidate proof; absent binding is legacy, never inferred approval. M1 only defines this contract; CLI enforcement is M2/M3."
+      }
+    }
+  }
+}

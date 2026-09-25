@@ -1,0 +1,17 @@
+{
+  "name": "Agent Capability Control Plane",
+  "version": "2.1.0-rc1",
+  "generated_from": [
+    "registry/catalog.json",
+    "modes/operational-modes.json",
+    "modes/evaluation-modes.json",
+    "registry/conflict-groups.json",
+    "lock/sources.lock.json"
+  ],
+  "catalog_entries": 0,
+  "operational_modes": 0,
+  "evaluation_modes": 0,
+  "conflict_groups": 0,
+  "locked_operational_providers": 0,
+  "real_windows_smoke_test": "pending"
+}

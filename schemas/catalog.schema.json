@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "entries"
+  ],
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "texts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "providerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|$))[a-z0-9](?:[a-z0-9._-]{0,94}[a-z0-9_-])?$",
+      "not": {
+        "pattern": "\\s"
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "entries": {
+      "type": "array",
+      "description": "Duplicate entry IDs are rejected by the runtime loader, including identical entries.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "adoption",
+          "trust",
+          "risk",
+          "deploy",
+          "capabilities",
+          "runtime",
+          "conflict_group",
+          "invocation"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/providerId"
+          },
+          "source_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Inactive unresolved sources may be null. F06 bound candidates require a supported canonical HTTPS or local file origin; schema representation is not admission."
+          },
+          "adoption": {
+            "type": "string",
+            "enum": [
+              "adopted",
+              "alternate",
+              "candidate",
+              "conditional",
+              "deferred",
+              "experimental",
+              "optional",
+              "quarantine",
+              "reference",
+              "rejected"
+            ]
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "partial",
+              "unreviewed",
+              "quarantine"
+            ]
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "capabilities": {
+            "$ref": "#/$defs/texts"
+          },
+          "conflict_group": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/text"
+              }
+            ]
+          },
+          "deploy": {
+            "type": "object",
+            "required": [
+              "deployable"
+            ],
+            "properties": {
+              "deployable": {
+                "type": "boolean"
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Unresolved/null paths remain representable; F06 operational binding requires an explicit canonical relative path, with dot only for an intentional source root."
+              }
+            }
+          },
+          "runtime": {
+            "type": "object",
+            "required": [
+              "requires",
+              "credentials"
+            ],
+            "properties": {
+              "requires": {
+                "$ref": "#/$defs/texts",
+                "description": "Descriptive requirements; operational resolution rejects unsupported expressions."
+              },
+              "credentials": {
+                "$ref": "#/$defs/texts"
+              }
+            }
+          },
+          "invocation": {
+            "type": "string",
+            "enum": [
+              "dormant",
+              "explicit",
+              "implicit"
+            ]
+          }
+        },
+        "description": "Representation domains include inactive records. Operational admission requires adopted/conditional, reviewed or two-key approved partial, deployable true, explicit or low-risk implicit invocation, evidence and verified executable requirements."
+      }
+    }
+  }
+}

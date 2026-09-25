@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "texts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "providerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|$))[a-z0-9](?:[a-z0-9._-]{0,94}[a-z0-9_-])?$",
+      "not": {
+        "pattern": "\\s"
+      }
+    },
+    "providerIds": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/providerId"
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "allowed_operational_modes": {
+      "$ref": "#/$defs/texts",
+      "description": "Absent means no project mode restriction; an explicit empty list denies all modes."
+    },
+    "default_operational_mode": {
+      "$ref": "#/$defs/text"
+    },
+    "project_type": {
+      "$ref": "#/$defs/texts",
+      "description": "Informational only."
+    },
+    "include": {
+      "$ref": "#/$defs/providerIds"
+    },
+    "exclude": {
+      "$ref": "#/$defs/providerIds",
+      "description": "Exclusion wins over include and every capability pass."
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require": {
+          "$ref": "#/$defs/texts"
+        },
+        "prefer": {
+          "$ref": "#/$defs/texts"
+        },
+        "forbid": {
+          "$ref": "#/$defs/texts"
+        }
+      }
+    }
+  }
+}

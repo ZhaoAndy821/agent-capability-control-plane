@@ -1,0 +1,346 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate",
+    "candidate_sha256",
+    "source_inventory",
+    "artifact_inventory",
+    "status",
+    "reviewer",
+    "reviewed_at",
+    "notes",
+    "executable_surface"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "candidate": {
+      "$ref": "#/$defs/candidate"
+    },
+    "candidate_sha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "source_inventory": {
+      "$ref": "#/$defs/inventory",
+      "contains": {
+        "type": "object",
+        "required": [
+          "path",
+          "type"
+        ],
+        "properties": {
+          "path": {
+            "const": "SKILL.md"
+          },
+          "type": {
+            "const": "file"
+          }
+        }
+      }
+    },
+    "artifact_inventory": {
+      "$ref": "#/$defs/inventory"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "approved"
+      ]
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "reviewed_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 16384
+    },
+    "executable_surface": {
+      "type": "array",
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/path"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "providerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^(?!con(?:\\.|$)|prn(?:\\.|$)|aux(?:\\.|$)|nul(?:\\.|$)|com[1-9](?:\\.|$)|lpt[1-9](?:\\.|$))[a-z0-9](?:[a-z0-9._-]{0,94}[a-z0-9_-])?$"
+    },
+    "hash": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "oid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.|\\.git|\\.accp-vault-manifest\\.json)(?:/|$))(?!.*[\\\\:\\x00-\\x1f\\x7f<>\"|?*])(?!.*(?:^|/)(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM][1-9]|[lL][pP][tT][1-9])(?:\\.|/|$))[^/]+(?:/[^/]+)*$",
+      "description": "Canonical relative POSIX path. Runtime additionally enforces UTF-8 byte/depth limits, Windows aliases, reserved names at every depth, and tree-wide Unicode/case collisions."
+    },
+    "deployPath": {
+      "oneOf": [
+        {
+          "const": "."
+        },
+        {
+          "$ref": "#/$defs/path"
+        }
+      ]
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device",
+        "inode"
+      ],
+      "properties": {
+        "device": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "inode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[1-9][0-9]*$"
+        }
+      }
+    },
+    "origin": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "url"
+          ],
+          "properties": {
+            "kind": {
+              "const": "https"
+            },
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "^https://[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/[^\\\\%?#\\s]+$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "url",
+            "root_identity"
+          ],
+          "properties": {
+            "kind": {
+              "const": "file"
+            },
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "^file:///[^\\\\?#\\x00-\\x1f]+$"
+            },
+            "root_identity": {
+              "$ref": "#/$defs/identity"
+            }
+          }
+        }
+      ],
+      "description": "Runtime enforces canonical origin spelling, supported native local paths and observed file-origin identity; a URL shape is not provenance."
+    },
+    "invocation": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "implicit"
+      ]
+    },
+    "projection": {
+      "const": "accp-invocation-v1"
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+      "format": "date-time"
+    },
+    "inventory": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "type"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/path"
+              },
+              "type": {
+                "const": "directory"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "type",
+              "size",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/path"
+              },
+              "type": {
+                "const": "file"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 33554432
+              },
+              "sha256": {
+                "$ref": "#/$defs/hash"
+              }
+            }
+          }
+        ]
+      },
+      "description": "Sorted unique UTF-8 paths, complete parents and no aliases; runtime validates total bytes, ordering, topology, digests and filesystem type/identity."
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_version",
+        "source_id",
+        "catalog_sha256",
+        "origin",
+        "commit",
+        "source_tree_oid",
+        "deploy_path",
+        "source_tree_sha256",
+        "artifact_tree_sha256",
+        "invocation",
+        "projection"
+      ],
+      "properties": {
+        "binding_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "source_id": {
+          "$ref": "#/$defs/providerId"
+        },
+        "catalog_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "origin": {
+          "$ref": "#/$defs/origin"
+        },
+        "commit": {
+          "$ref": "#/$defs/oid"
+        },
+        "source_tree_oid": {
+          "$ref": "#/$defs/oid"
+        },
+        "deploy_path": {
+          "$ref": "#/$defs/deployPath"
+        },
+        "source_tree_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "artifact_tree_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "invocation": {
+          "$ref": "#/$defs/invocation"
+        },
+        "projection": {
+          "$ref": "#/$defs/projection"
+        }
+      }
+    },
+    "runtimeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_id",
+        "runtime_path",
+        "control_plane_path",
+        "principal",
+        "root_identity",
+        "vault_identity"
+      ],
+      "properties": {
+        "runtime_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "runtime_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32768
+        },
+        "control_plane_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32768
+        },
+        "principal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^(?:uid:(?:0|[1-9][0-9]*)|sid:S-[0-9]+(?:-[0-9]+)+)$"
+        },
+        "root_identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "vault_identity": {
+          "$ref": "#/$defs/identity"
+        }
+      }
+    }
+  },
+  "description": "F06 evidence v2. Only canonical strict UTF-8 C1 plus LF is accepted by the binding reader; duplicate keys, floats, bytes/depth/count excess and unknown fields deny. Runtime must recompute candidate/inventory/projection digests and bind the complete current catalog entry. Schema1 evidence is archival only. Pending is representable, never operational approval."
+}

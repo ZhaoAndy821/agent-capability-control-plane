@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "principles": {
+    "active_skill_target": "keep the active set as small as the task allows",
+    "default_global_third_party_skills": 0,
+    "project_isolation": "policy isolation + task-mode resolution",
+    "third_party_code": "never execute during fetch/sync",
+    "unresolved_sources": "quarantine; never guess silently"
+  },
+  "entries": [
+    {
+      "id": "example-eligible",
+      "name": "example-eligible",
+      "kind": "skill",
+      "source_url": "https://example.invalid/example-eligible",
+      "source_resolution": "exact",
+      "adoption": "adopted",
+      "trust": "reviewed",
+      "risk": "low",
+      "invocation": "explicit",
+      "domains": [
+        "example"
+      ],
+      "capabilities": [
+        "example-capability"
+      ],
+      "conflict_group": null,
+      "runtime": {
+        "requires": [],
+        "credentials": [],
+        "network": false
+      },
+      "deploy": {
+        "deployable": true,
+        "skill_name": "example-eligible",
+        "path": "skill"
+      },
+      "notes": "",
+      "origin": "example"
+    },
+    {
+      "id": "example-ineligible",
+      "name": "example-ineligible",
+      "kind": "skill",
+      "source_url": "https://example.invalid/example-ineligible",
+      "source_resolution": "exact",
+      "adoption": "candidate",
+      "trust": "reviewed",
+      "risk": "low",
+      "invocation": "explicit",
+      "domains": [
+        "example"
+      ],
+      "capabilities": [
+        "example-capability"
+      ],
+      "conflict_group": null,
+      "runtime": {
+        "requires": [],
+        "credentials": [],
+        "network": false
+      },
+      "deploy": {
+        "deployable": true,
+        "skill_name": "example-ineligible",
+        "path": "skill"
+      },
+      "notes": "Present and locked, but not operationally eligible: adoption=candidate is refused by operational admission.",
+      "origin": "example"
+    }
+  ]
+}

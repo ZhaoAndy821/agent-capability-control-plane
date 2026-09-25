@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "generated_at": "1970-01-01T00:00:00Z",
+  "policy": "lock-first: only approved, evidence-bound commits may materialize or activate",
+  "sources": {
+    "example-eligible": {
+      "repo": "https://example.invalid/example-eligible",
+      "commit": "0000000000000000000000000000000000000000",
+      "deploy_path": "skill",
+      "evidence": "audit/evidence/example-eligible.json",
+      "evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "binding": {
+        "schema_version": 1,
+        "candidate_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "approval": {
+        "partial_or_conditional": false,
+        "high_risk": false,
+        "approved_at": "1970-01-01T00:00:00Z"
+      }
+    },
+    "example-ineligible": {
+      "repo": "https://example.invalid/example-ineligible",
+      "commit": "0000000000000000000000000000000000000000",
+      "deploy_path": "skill",
+      "evidence": "audit/evidence/example-ineligible.json",
+      "evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "binding": {
+        "schema_version": 1,
+        "candidate_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "approval": {
+        "partial_or_conditional": false,
+        "high_risk": false,
+        "approved_at": "1970-01-01T00:00:00Z"
+      }
+    }
+  }
+}

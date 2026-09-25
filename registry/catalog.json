@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "principles": {
+    "active_skill_target": "1-5 third-party skills per task where practical",
+    "default_global_third_party_skills": 0,
+    "project_isolation": "policy isolation + task-mode resolution; no per-project vendor copies",
+    "third_party_code": "never execute during fetch/sync",
+    "unresolved_sources": "quarantine; never guess silently"
+  },
+  "entries": []
+}

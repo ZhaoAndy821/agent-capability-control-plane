@@ -1,0 +1,121 @@
+name: V2.1 CI
+
+# AUTHORITATIVE RELEASE GATE.
+#
+# Every blocking V2.1 gate runs here, on windows-latest with Python 3.12, because
+# Windows is the platform the product's security semantics are defined on and
+# validated against (ctypes/GetDriveTypeW path checks, reparse-point and junction
+# handling, drive anchors, ownership tokens).
+#
+# Linux portability, if it is checked at all, lives in portability-advisory.yml and
+# is explicitly NOT part of the release gate. Upstream availability monitoring lives
+# in upstream-watch.yml, also not a gate: third-party repository drift must never
+# fail a V2.1 release.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-e2e:
+    name: Windows / Python 3.12 / registry + full suite (authoritative)
+    runs-on: windows-latest
+    # The full 676-test suite measures ~85 minutes on this project's 3.12
+    # interpreter. Set an explicit ceiling rather than inheriting the 360-minute
+    # default, so a genuine hang fails fast instead of burning an hour of quota.
+    timeout-minutes: 180
+    env:
+      # bytecode must never be written: test_e2e and test_lifecycle_readers compare
+      # whole-tree snapshots, and a stray __pycache__ directory makes those
+      # assertions fail. This MUST be an environment variable as well as -B, because
+      # -B does not propagate to the subprocesses those tests spawn.
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Report interpreter
+        run: python -B -c "import sys; print(sys.version)"
+
+      - name: Registry / schema lint
+        run: python -B scripts/lint_registry.py
+
+      - name: Full unit test discovery
+        # Covers provenance/binding, the Windows ctime regressions, transactional
+        # activation/deactivation, lifecycle readers and dry-run dispatch,
+        # resolver/admission/eligibility boundaries, and the adversarial suites.
+        run: python -B -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Regenerate tracked artifacts
+        run: python -B scripts/generate_artifacts.py
+
+      - name: Generated artifacts must be clean
+        # Deterministic because .gitattributes pins the checkout form of the
+        # generated files and generate_artifacts.py writes LF explicitly. This must
+        # not depend on the runner's core.autocrlf setting.
+        shell: pwsh
+        run: |
+          if (git status --porcelain) { git diff; exit 1 }
+
+  powershell-51:
+    name: Windows PowerShell 5.1 / Pester 5.7.1
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester 5.7.1
+        # Pinned deliberately: the suite uses Pester 5 syntax (file-scope
+        # BeforeAll), so whatever module happens to ship on the runner must not be
+        # relied upon. 5.7.1 is the version verified locally for this project.
+        shell: powershell
+        run: Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run PowerShell entrypoint tests
+        shell: powershell
+        run: Invoke-Pester -Path tests/PowerShell.Tests.ps1 -Output Detailed
+
+  powershell-7:
+    name: PowerShell 7 / Pester 5.7.1
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester 5.7.1
+        shell: pwsh
+        run: Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run PowerShell entrypoint tests
+        shell: pwsh
+        run: Invoke-Pester -Path tests/PowerShell.Tests.ps1 -Output Detailed
+
+  release-gate:
+    name: Release gate summary
+    needs: [python-e2e, powershell-51, powershell-7]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert every blocking gate succeeded
+        # Fails closed: a skipped or cancelled dependency is not a pass.
+        run: |
+          echo "python-e2e:   ${{ needs.python-e2e.result }}"
+          echo "powershell-51: ${{ needs.powershell-51.result }}"
+          echo "powershell-7:  ${{ needs.powershell-7.result }}"
+          for r in "${{ needs.python-e2e.result }}" "${{ needs.powershell-51.result }}" "${{ needs.powershell-7.result }}"; do
+            if [ "$r" != "success" ]; then
+              echo "::error::blocking gate did not succeed (result=$r)"
+              exit 1
+            fi
+          done
+          echo "All blocking V2.1 gates passed."

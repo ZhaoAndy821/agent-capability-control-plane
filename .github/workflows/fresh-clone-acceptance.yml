@@ -1,0 +1,127 @@
+name: Fresh-clone acceptance
+# Dispatch-only on purpose: this proves the platform can be brought up from a
+# clean checkout, which is a tag-time gate rather than a per-commit cost.
+# It must be dispatched explicitly at tag time and be green before the tag.
+
+# RELEASE GATE (release-tag path).
+#
+# Purpose: prove ACCP can be *used* from a clean checkout — not merely that it
+# passes tests in a developer's historical working tree. This is the workflow that
+# answers "can this control platform be brought up from scratch on a clean machine".
+#
+# Triggered manually and as a reusable (workflow_call) job so a release process can
+# require it, rather than paying the cost on every commit.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: Windows / Python 3.12 / fresh-clone acceptance
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      # See ci.yml: whole-tree snapshot oracles in test_e2e and
+      # test_lifecycle_readers fail if any __pycache__ is written, and -B alone
+      # does not reach the subprocesses those tests spawn.
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      # actions/checkout performs a clean checkout: this job deliberately does not
+      # reuse any prior working tree state.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Environment validation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B -c "import sys; assert sys.version_info[:2] == (3,12), sys.version; print('python', sys.version)"
+          git --version
+          $pwshVersion = $PSVersionTable.PSVersion.ToString()
+          Write-Host "pwsh $pwshVersion"
+          if ($PSVersionTable.PSEdition -ne 'Core') { throw "expected PowerShell 7 (Core) for this job" }
+          if (-not (Get-Command python)) { throw 'python not on PATH' }
+
+      - name: Install Pester 5.7.1
+        shell: pwsh
+        run: Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Generated artifacts must be clean from a fresh checkout
+        # Runs before the tests so a line-ending or generator regression is reported
+        # as itself rather than as a mysterious later failure.
+        shell: pwsh
+        run: |
+          python -B scripts/generate_artifacts.py
+          if (git status --porcelain) {
+            Write-Host '--- dirty tree after generation ---'
+            git status --porcelain
+            git diff
+            throw 'generated artifacts are not reproducible from a fresh checkout'
+          }
+          Write-Host 'generated artifacts reproducible'
+
+      - name: Registry / schema validation
+        run: python -B scripts/lint_registry.py
+
+      - name: Lifecycle acceptance (controlled fixture sources)
+        # The real activate/deactivate/rollback/recovery paths, proven against
+        # hermetic file:// fixture sources by the project's own fixtures. These need
+        # no network, no secrets, and never touch a real user profile. They are run
+        # here as a named acceptance step rather than reimplemented in shell, where a
+        # mistake could reach real state.
+        run: >
+          python -B -m unittest
+          test_e2e
+          test_activation_transaction
+          test_deactivate_transaction
+          test_activation_recovery
+          test_deactivate_recovery
+          test_activation_process_crash
+          test_lifecycle_readers
+          test_terminal_cleanup
+        working-directory: tests
+
+      - name: CLI acceptance in an isolated root
+        # Covers what the unit tests do not: the CLI entrypoints themselves
+        # (bootstrap/doctor/status/resolve/activate-preview/audit/recover-preview),
+        # driven with ACCP_RUNTIME_ROOT, ACCP_USER_SCOPE_ROOT and ACCP_USER_HOME all
+        # redirected into a temporary directory, asserting fail-closed refusals and
+        # that the machine's real profile is untouched.
+        #
+        # The report is written OUTSIDE the repository on purpose: writing it into
+        # the checkout makes the tree dirty and fails the final cleanliness gate
+        # below (which is how this was caught on the first acceptance run).
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'acceptance-report.json'
+          python -B scripts/acceptance_smoke.py --json $report
+          Write-Host "acceptance report: $report"
+
+      - name: Upload acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-report
+          path: ${{ runner.temp }}/acceptance-report.json
+          if-no-files-found: warn
+
+      - name: Final tree must be clean
+        # Fail closed: tests, fixtures or the acceptance smoke must not leave
+        # tracked modifications behind.
+        if: always()
+        shell: pwsh
+        run: |
+          $dirty = git status --porcelain
+          if ($dirty) {
+            Write-Host '--- tree is not clean after the acceptance run ---'
+            $dirty
+            git diff
+            exit 1
+          }
+          Write-Host 'working tree clean after acceptance'

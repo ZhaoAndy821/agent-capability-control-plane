@@ -1,0 +1,51 @@
+name: Upstream watch (advisory)
+
+# ADVISORY ONLY — NOT A RELEASE GATE.
+#
+# This checks whether the third-party sources referenced by registry/catalog.json
+# are still reachable and whether their HEAD still matches the pinned commit.
+#
+# It is deliberately decoupled from V2.1 release correctness: a renamed, deleted or
+# temporarily unreachable third-party repository, or a transient network failure,
+# must not be able to fail a V2.1 release. Nothing in this workflow is part of the
+# release gate.
+#
+# A failing run here is a real and visible signal about an upstream source; it is
+# simply not a statement about this project's own correctness.
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstreams:
+    name: Upstream availability (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check upstream heads
+        # pipefail matters: without it the pipeline would report tee's status and
+        # silently swallow check_upstreams.py's non-zero exit.
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/check_upstreams.py | tee upstream-watch.md
+
+      - name: Publish watch summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Upstream watch (advisory, not a release gate)"
+            echo
+            cat upstream-watch.md 2>/dev/null || echo "_no report produced_"
+          } >> "$GITHUB_STEP_SUMMARY"

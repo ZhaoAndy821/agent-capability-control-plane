@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "modes": {
+    "example-denied": {
+      "description": "Seeds a provider that is locked but not operationally eligible, so resolve must refuse and name the reason.",
+      "providers": [
+        "example-ineligible"
+      ],
+      "risk_ceiling": "low"
+    }
+  }
+}

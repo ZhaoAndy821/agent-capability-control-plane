@@ -1,0 +1,6 @@
+interface:
+  display_name: "Capability Control Plane"
+  short_description: "Plan, audit, and curate the Agent/Skill stack"
+  default_prompt: "Audit this capability-management task and coordinate the control-plane agents to propose the smallest safe change."
+policy:
+  allow_implicit_invocation: false

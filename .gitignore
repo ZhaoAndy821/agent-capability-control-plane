@@ -1,0 +1,21 @@
+# Local runtime / secrets
+.env
+.env.*
+!.env.example
+.local/
+runtime/
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Never vendor third-party sources into this repo
+sources/
+vault/

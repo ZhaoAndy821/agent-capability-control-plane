@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "allowed_operational_modes": ["smoke-debug"],
+  "default_operational_mode": "smoke-debug",
+  "include": [],
+  "exclude": [],
+  "capabilities": {
+    "require": [],
+    "prefer": [],
+    "forbid": []
+  }
+}

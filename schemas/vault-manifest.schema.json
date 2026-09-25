@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_id",
+    "candidate_sha256",
+    "evidence_sha256",
+    "artifact_tree_sha256",
+    "invocation",
+    "projection",
+    "runtime_binding",
+    "materialized_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "source_id": {
+      "$ref": "evidence.schema.json#/$defs/providerId"
+    },
+    "candidate_sha256": {
+      "$ref": "evidence.schema.json#/$defs/hash"
+    },
+    "evidence_sha256": {
+      "$ref": "evidence.schema.json#/$defs/hash"
+    },
+    "artifact_tree_sha256": {
+      "$ref": "evidence.schema.json#/$defs/hash"
+    },
+    "invocation": {
+      "$ref": "evidence.schema.json#/$defs/invocation"
+    },
+    "projection": {
+      "$ref": "evidence.schema.json#/$defs/projection"
+    },
+    "runtime_binding": {
+      "$ref": "evidence.schema.json#/$defs/runtimeBinding"
+    },
+    "materialized_at": {
+      "$ref": "evidence.schema.json#/$defs/timestamp"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "F06 Vault v2 consistency metadata, not approval authority. Canonical UTF-8 C1 plus LF, <=64KiB. Runtime validates exact reviewed expected content, current F02 ready receipt and derived Vault identity/location; syntax alone grants no authority."
+}

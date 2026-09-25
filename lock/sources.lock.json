@@ -1,0 +1,6 @@
+{
+  "schema_version": 2,
+  "generated_at": "1970-01-01T00:00:00Z",
+  "policy": "lock-first: only approved, evidence-bound commits may materialize or activate",
+  "sources": {}
+}

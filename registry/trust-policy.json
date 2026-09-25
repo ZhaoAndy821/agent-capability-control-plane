@@ -1,0 +1,16 @@
+{
+  "reviewed": "metadata and basic upstream structure reviewed; still re-audit before privileged execution",
+  "partial": "identity/use-case reviewed; scripts/dependencies not fully audited",
+  "unreviewed": "do not activate automatically",
+  "quarantine_rules": [
+    "unresolved source URL",
+    "privacy-sensitive personalization",
+    "unbounded install/exec behavior",
+    "ambiguous ownership or copied mega-suite without clear provenance"
+  ],
+  "write_rules": [
+    "read-heavy scouts/auditors/resolvers do not write registry",
+    "only registry_integrator writes registry after main agent synthesizes a decision",
+    "parallel write-heavy subagents are prohibited by default"
+  ]
+}

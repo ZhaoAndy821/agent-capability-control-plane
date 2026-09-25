@@ -1,0 +1,16 @@
+# Line-ending policy.
+#
+# The CI release gate regenerates the artifacts below and then requires
+# `git status --porcelain` to be empty. That comparison is only meaningful if the
+# checkout form of these files is deterministic: without a rule here it depends on
+# the runner's `core.autocrlf`, and a runner configured with autocrlf=false would
+# fail the gate even though the generated content is correct.
+#
+# `.gitattributes` takes precedence over `core.autocrlf`, so `eol=lf` pins the
+# checkout form on every platform. The committed blobs are already LF, so this
+# changes no stored content and requires no renormalization.
+#
+# Keep this list in sync with scripts/generate_artifacts.py.
+VERSION.json             text eol=lf
+docs/REGISTRY-SUMMARY.md text eol=lf
+docs/INDEX.html          text eol=lf

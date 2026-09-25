@@ -1,0 +1,42 @@
+name: Portability advisory (non-authoritative)
+
+# ADVISORY ONLY — NOT A RELEASE GATE.
+#
+# V2.1's security semantics are defined and validated on Windows: ctypes
+# GetDriveTypeW path checks, reparse-point/junction refusal, drive anchors and
+# ownership tokens. The authoritative, release-blocking lint runs in ci.yml on
+# windows-latest.
+#
+# This workflow asks a different, optional question: does the registry/binding lint
+# also happen to work on Linux? A failure here is a portability observation about a
+# platform the product does not currently claim to support. It does not block and
+# is not part of the V2.1 release gate.
+#
+# This is a separate workflow on purpose. It is NOT wrapped in continue-on-error,
+# so a failure stays visible rather than being masked.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-lint:
+    name: Linux registry lint (ADVISORY - not a release gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Advisory notice
+        run: |
+          echo "::notice::ADVISORY / NON-AUTHORITATIVE. V2.1 is a Windows platform; the release-blocking lint runs on windows-latest in ci.yml. A result here is a portability observation only."
+
+      - name: Registry lint on Linux (informational)
+        run: python scripts/lint_registry.py

@@ -26,13 +26,13 @@ mode exists until you add one; substitute a mode from your own
 `modes/operational-modes.json`. `examples/minimal-instance/` shows the shape.
 
 ```powershell
-.\scripts\resolve.ps1 -Mode <your-mode>
+.\scripts\resolve.ps1 --mode <your-mode> --project <your-project>
 ```
 
 Fetch only the required upstream Skills and activate them:
 
 ```powershell
-.\scripts\activate.ps1 -Mode <your-mode> -FetchMissing
+.\scripts\activate.ps1 --mode <your-mode> --project <your-project>
 ```
 
 Uninstall is bounded to registered runtimes. It requires a valid ownership
@@ -52,7 +52,7 @@ Create lightweight policy + project agents in a project:
 ## Worked example
 
 `examples/minimal-instance/` is a small, fully synthetic instance: a catalog with
-two providers, a lock, an operational mode and a project policy. One provider is
+two providers, a lock and an operational mode. One provider is
 admissible; the other exists and is locked but is not operationally eligible, so
 resolving the mode that seeds it is refused with a reason that names it. Nothing in
 it is a real provider or a real selection. Use it as the shape to copy when

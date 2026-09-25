@@ -32,9 +32,10 @@ before and after, and any change is a hard failure. The runtime path is left
 ABSENT on purpose: the design refuses to adopt an existing directory.
 
 Assertions are semantic, not "whatever happened": bootstrap/doctor must succeed,
-a legacy non-admissible provider must be REFUSED by resolve and must not activate,
-previews must report a preview without mutating, and the real profile must be
-byte-identical afterwards.
+an undefined mode must be refused; a provider that exists and is locked but is not
+operationally eligible must be refused with a reason that names it; previews must
+report a preview without mutating; and the real profile must be byte-identical
+afterwards.
 
 Usage:
     python -B scripts/acceptance_smoke.py [--keep] [--json OUT]

@@ -1,9 +1,16 @@
 # Minimal instance (synthetic)
 
 A worked, fully synthetic example of the data this control plane reads: a catalog,
-a lock, an operational mode and a project policy. Nothing here is a real provider,
-a real selection, or a real source; the URLs use the reserved `example.invalid`
-domain and every digest is a placeholder.
+a conflict-group file, an operational mode and a lock. Nothing here is a real
+provider, a real selection, or a real source; the URLs use the reserved
+`example.invalid` domain and every digest is a placeholder.
+
+**What this example is for.** It demonstrates the shape of the catalog and lock
+entries, and it drives the operational admission path to a refusal. It is not a
+runnable end-to-end instance: `example.invalid` can never be fetched, so nothing
+here can be materialized or activated, and no evidence record is shipped for it.
+The positive materialize/activate path is covered by the test suite, which builds
+its own hermetic `file://` sources.
 
 ## Layout
 
@@ -11,8 +18,13 @@ domain and every digest is a placeholder.
 registry/catalog.json          two providers
 registry/conflict-groups.json  empty
 modes/operational-modes.json   one mode, "example-denied"
+modes/evaluation-modes.json    empty
 lock/sources.lock.json         a lock entry for both providers
 ```
+
+There is no project policy file here. A project policy is what *you* write for your
+project; the acceptance smoke generates one at run time. `schemas/project-policy.schema.json`
+is the authoritative shape.
 
 | provider | state | what it demonstrates |
 |---|---|---|

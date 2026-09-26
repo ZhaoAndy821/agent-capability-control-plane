@@ -17,9 +17,42 @@ A Git-backed control plane for Codex Skills, custom agents, external tools, and 
 
 ## First run
 
+On Windows, prefer a clone over a downloaded archive:
+
 ```powershell
+git clone https://github.com/ZhaoAndy821/agent-capability-control-plane.git
+cd agent-capability-control-plane
 .\scripts\bootstrap.ps1
 ```
+
+### If you downloaded the ZIP instead
+
+Windows marks files that came from the Internet, and a ZIP downloaded in a browser
+carries that mark onto everything extracted from it. With the default `RemoteSigned`
+execution policy the unsigned entry scripts are then treated as remote and refused:
+
+```text
+bootstrap.ps1 cannot be loaded. The file is not digitally signed.
+You cannot run this script on the current system.
+```
+
+Remove the mark rather than weakening the policy — no permanent
+`Set-ExecutionPolicy` change is needed, and `-ExecutionPolicy Bypass` is not part of
+a normal installation.
+
+Before extracting, unblock the archive (right-click -> Properties -> Unblock, or):
+
+```powershell
+Unblock-File .\agent-capability-control-plane-*.zip
+```
+
+If it is already extracted:
+
+```powershell
+Get-ChildItem .\scripts\*.ps1 | Unblock-File
+```
+
+Then run the first-run command as documented.
 
 Then resolve a task mode. This platform ships with an **empty registry**, so no
 mode exists until you add one; substitute a mode from your own

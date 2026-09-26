@@ -32,6 +32,19 @@ MAX_ENTRIES = 10_000
 MAX_FILE = 32 * 1024 * 1024
 MAX_PAYLOAD = 256 * 1024 * 1024
 MAX_PATH = 1024
+# Two distinct mode sets, deliberately not one. The parser must recognise every
+# canonical Git mode so that a tree can be read at all, while the artifact may only
+# ever contain trees, regular files and executables. Keeping them separate stops a
+# later refactor from widening "a symlink sibling outside the selected path is
+# ignored" into "a symlink inside the artifact is accepted".
+GIT_MODE_TREE = b'40000'
+GIT_MODE_FILE = b'100644'
+GIT_MODE_EXECUTABLE = b'100755'
+GIT_MODE_SYMLINK = b'120000'
+GIT_MODE_GITLINK = b'160000'
+PARSED_GIT_MODES = (GIT_MODE_TREE, GIT_MODE_FILE, GIT_MODE_EXECUTABLE,
+                    GIT_MODE_SYMLINK, GIT_MODE_GITLINK)
+ARTIFACT_GIT_MODES = (GIT_MODE_TREE, GIT_MODE_FILE, GIT_MODE_EXECUTABLE)
 MANIFEST = '.accp-vault-manifest.json'
 PROJECTION = 'accp-invocation-v1'
 LABELS = frozenset(('accp-catalog-v1', 'accp-source-tree-v1',
@@ -871,7 +884,12 @@ def _bounded_git(repo, args, limit, transport=None):
             process.kill()
         code = process.wait()
         require(not expired.is_set(), 'Git object read timeout')
-        require(code == 0 and len(data) <= limit, 'Git object read failed/limit')
+        # Keep these three conditions distinct. Collapsing them into one message
+        # ("failed/limit") made a non-zero Git exit indistinguishable from an
+        # oversized read, which sent diagnosis down the wrong path: stderr is
+        # discarded here, so command progress output can never be the cause.
+        require(len(data) <= limit, 'Git object read limit exceeded')
+        require(code == 0, 'Git object read failed (exit code %d)' % code)
         return data
     finally:
         timer.cancel()
@@ -970,6 +988,13 @@ def export_locked_tree(bare_repo, commit, deploy_path, origin):
     tree_oid = match.group(1).decode('ascii')
 
     def entries(oid):
+        """Parse a canonical Git tree; this is NOT the artifact-admission gate.
+
+        Every canonical mode is recognised here, including symlink and gitlink,
+        because resolving a deploy path has to read trees that may contain them as
+        siblings. What may enter the artifact is enforced by ARTIFACT_GIT_MODES in
+        walk(), and what may be traversed is enforced in the descent below.
+        """
         data = obj(oid, 'tree', MAX_RECORD)
         result = []
         cursor = 0
@@ -978,7 +1003,7 @@ def export_locked_tree(bare_repo, commit, deploy_path, origin):
             end = data.find(b'\0', cursor)
             require(end > cursor and end + 21 <= len(data), 'truncated Git tree')
             header = data[cursor:end].split(b' ', 1)
-            require(len(header) == 2 and header[0] in (b'40000', b'100644', b'100755'), 'unsupported Git mode/link/gitlink')
+            require(len(header) == 2 and header[0] in PARSED_GIT_MODES, 'unsupported Git mode')
             try:
                 name = header[1].decode('utf-8', errors='strict')
             except UnicodeDecodeError as ex:
@@ -990,7 +1015,9 @@ def export_locked_tree(bare_repo, commit, deploy_path, origin):
             result.append((header[0], name, data[end+1:end+21].hex()))
             require(len(result) <= MAX_ENTRIES, 'Git tree count limit')
             cursor = end + 21
-        order = lambda item: item[1].encode('utf-8') + (b'/' if item[0] == b'40000' else b'\0')
+        # Trees sort as name + '/', every other mode as name + '\0'; symlinks and
+        # gitlinks therefore take part in the ordering check rather than escaping it.
+        order = lambda item: item[1].encode('utf-8') + (b'/' if item[0] == GIT_MODE_TREE else b'\0')
         require(result == sorted(result, key=order), 'noncanonical Git tree ordering')
         return result
 
@@ -998,23 +1025,30 @@ def export_locked_tree(bare_repo, commit, deploy_path, origin):
         for component in deploy_path.split('/'):
             current = entries(tree_oid)
             matches = [(mode, oid) for mode, name, oid in current if name == component]
-            require(len(matches) == 1 and matches[0][0] == b'40000', 'deploy subtree missing/not directory')
+            # Only a tree may be traversed: a symlink or gitlink cannot be a
+            # selected component, and neither can a regular file.
+            require(len(matches) == 1 and matches[0][0] == GIT_MODE_TREE, 'deploy subtree missing/not directory')
             tree_oid = matches[0][1]
     payload, records, executables = {}, [], []
 
     def walk(oid, prefix):
         for mode, name, child_oid in entries(oid):
+            # The artifact-admission gate. Inside the selected subtree only trees,
+            # regular files and executables are permitted; a symlink or gitlink here
+            # is refused outright, which is the property the parser deliberately no
+            # longer enforces for siblings outside the selected path.
+            require(mode in ARTIFACT_GIT_MODES, 'unsupported Git mode/link/gitlink')
             name = prefix + name
             canonical_relative_path(name)
             require(len(records) < MAX_ENTRIES, 'Git inventory count limit')
-            if mode == b'40000':
+            if mode == GIT_MODE_TREE:
                 records.append({'path': name, 'type': 'directory'})
                 walk(child_oid, name + '/')
             else:
                 data = obj(child_oid, 'blob', MAX_FILE)
                 payload[name] = data
                 records.append({'path': name, 'type': 'file', 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
-                if mode == b'100755':
+                if mode == GIT_MODE_EXECUTABLE:
                     executables.append(name)
 
     walk(tree_oid, '')

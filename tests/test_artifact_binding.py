@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -242,6 +243,142 @@ class ArtifactBindingTests(unittest.TestCase):
             ab.decode_evidence(b"{}\n")
         with self.assertRaises((ValueError, TypeError, ab.BindingError)):
             ab.validate_vault_manifest({"schema_version": 1})
+
+
+class DeployPathModeScopeTests(unittest.TestCase):
+    """A symlink or gitlink outside the selected deploy path must not block export.
+
+    Before this contract existed, `entries()` refused every mode other than
+    tree/regular/executable while simply *reading* a tree, and resolving a deploy
+    path reads the root tree before it descends. A repository with a symlinked
+    root-level file was therefore unusable even when the selected subtree was clean
+    -- `mattpocock/skills` (root `AGENTS.md` is a symlink) is a real example.
+
+    The security property is unchanged and is asserted here in both directions:
+    special-mode entries are ignored as non-selected siblings OUTSIDE the deploy
+    path, and are still refused INSIDE it.
+    """
+
+    def setUp(self):
+        local = Path(__file__).resolve().parents[1] / '.local' / 'audit-temp'
+        local.mkdir(parents=True, exist_ok=True)
+        self.tmp = tempfile.TemporaryDirectory(dir=local)
+        self.root = Path(self.tmp.name)
+        self.git = shutil.which('git')
+        if self.git is None:
+            self.skipTest('Git is required for raw-object acceptance')
+        self.repo = self.root / 'repo.git'
+        subprocess.run([self.git, 'init', '--bare', str(self.repo)],
+                       check=True, capture_output=True)
+        self.origin = 'https://example.invalid/scope'
+        self.git_run(['config', 'remote.origin.url', self.origin])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git_run(self, args, data=None):
+        return subprocess.run([self.git, '-C', str(self.repo), *args],
+                              input=data, capture_output=True, check=True).stdout
+
+    def blob(self, content):
+        return self.git_run(['hash-object', '-w', '--stdin'], content).decode().strip()
+
+    def mktree(self, spec):
+        """spec: list of (mode, type, oid, name)."""
+        body = ''.join(f'{m} {t} {o}\t{n}\n' for m, t, o, n in spec).encode()
+        return self.git_run(['mktree'], body).decode().strip()
+
+    def commit(self, tree, message=b'fixture\n'):
+        return self.git_run(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                         'commit-tree', tree], message).decode().strip()
+
+    def export(self, commit, deploy_path):
+        return ab.export_locked_tree(self.repo, commit, deploy_path,
+                                     ab.canonical_origin(self.origin))
+
+    def skill_blob(self):
+        return self.blob(b'hello\n')
+
+    def test_1_root_symlink_sibling_with_clean_deploy_subtree_exports(self):
+        """OUTSIDE deploy.path: a canonical symlink sibling is ignored content."""
+        skill = self.skill_blob()
+        inner = self.mktree([('100644', 'blob', skill, 'SKILL.md')])
+        root = self.mktree([('40000', 'tree', inner, 'skill'),
+                            ('120000', 'blob', self.blob(b'target.md'), 'AGENTS.md')])
+        result = self.export(self.commit(root), 'skill')
+        self.assertEqual(result.payload, {'SKILL.md': b'hello\n'})
+        self.assertEqual([r['path'] for r in result.inventory], ['SKILL.md'])
+        self.assertNotIn('AGENTS.md', result.payload)
+
+    def test_2_root_gitlink_sibling_with_clean_deploy_subtree_exports(self):
+        """OUTSIDE deploy.path: a canonical gitlink sibling is ignored content."""
+        skill = self.skill_blob()
+        inner = self.mktree([('100644', 'blob', skill, 'SKILL.md')])
+        submodule_commit = self.commit(self.mktree([('100644', 'blob', skill, 'SKILL.md')]),
+                                       b'submodule\n')
+        root = self.mktree([('40000', 'tree', inner, 'skill'),
+                            ('160000', 'commit', submodule_commit, 'vendor')])
+        result = self.export(self.commit(root), 'skill')
+        self.assertEqual(result.payload, {'SKILL.md': b'hello\n'})
+        self.assertEqual([r['path'] for r in result.inventory], ['SKILL.md'])
+
+    def test_3_symlink_inside_selected_subtree_is_refused(self):
+        """INSIDE the deploy subtree a symlink is still a hard failure."""
+        skill = self.skill_blob()
+        inner = self.mktree([('100644', 'blob', skill, 'SKILL.md'),
+                             ('120000', 'blob', self.blob(b'elsewhere'), 'link.md')])
+        root = self.mktree([('40000', 'tree', inner, 'skill')])
+        with self.assertRaisesRegex(ab.BindingError, 'mode/link/gitlink'):
+            self.export(self.commit(root), 'skill')
+
+    def test_4_gitlink_inside_selected_subtree_is_refused(self):
+        """INSIDE the deploy subtree a gitlink is still a hard failure."""
+        skill = self.skill_blob()
+        submodule_commit = self.commit(self.mktree([('100644', 'blob', skill, 'SKILL.md')]),
+                                       b'submodule\n')
+        inner = self.mktree([('100644', 'blob', skill, 'SKILL.md'),
+                             ('160000', 'commit', submodule_commit, 'vendor')])
+        root = self.mktree([('40000', 'tree', inner, 'skill')])
+        with self.assertRaisesRegex(ab.BindingError, 'mode/link/gitlink'):
+            self.export(self.commit(root), 'skill')
+
+    def test_5_special_mode_deploy_component_is_refused(self):
+        """A selected deploy.path component must be a tree, never a link."""
+        skill = self.skill_blob()
+        inner = self.mktree([('100644', 'blob', skill, 'SKILL.md')])
+        submodule_commit = self.commit(inner, b'submodule\n')
+        for label, spec in (('symlink', ('120000', 'blob', self.blob(b'skill'))),
+                            ('gitlink', ('160000', 'commit', submodule_commit)),
+                            ('file', ('100644', 'blob', skill))):
+            with self.subTest(component=label):
+                root = self.mktree([('40000', 'tree', inner, 'other'),
+                                    (spec[0], spec[1], spec[2], 'skill')])
+                with self.assertRaisesRegex(ab.BindingError, 'deploy subtree missing/not directory'):
+                    self.export(self.commit(root), 'skill')
+
+    def test_6_special_mode_siblings_still_take_part_in_validation(self):
+        """Special-mode entries must not escape the name and ordering checks."""
+        skill = self.skill_blob()
+        inner = self.mktree([('100644', 'blob', skill, 'SKILL.md')])
+        # (a) NFKC/casefold ambiguity: the colliding entry is a symlink, so it must
+        #     still be seen by the alias check rather than skipped as an odd mode.
+        ambiguous = self.mktree([('40000', 'tree', inner, 'skill'),
+                                 ('100644', 'blob', skill, 'Foo'),
+                                 ('120000', 'blob', self.blob(b'x'), 'foo')])
+        with self.assertRaisesRegex(ab.BindingError, 'ambiguous Git tree name'):
+            self.export(self.commit(ambiguous), 'skill')
+        # (b) noncanonical ordering: hand-build a tree whose entries are out of
+        #     order, with a symlink among them. Git orders trees as name + '/' and
+        #     every other mode as name + '\0', so 'alpha\0' must precede 'zeta/';
+        #     listing the tree first is therefore noncanonical. (An earlier version
+        #     of this fixture used 'skill\0' vs 'skill-a/', which is already in
+        #     order, because '\0' sorts before '-'.)
+        raw = (b'40000 zeta\0' + bytes.fromhex(inner)
+               + b'120000 alpha\0' + bytes.fromhex(self.blob(b'x')))
+        noncanonical = self.git_run(['hash-object', '-t', 'tree', '-w', '--stdin', '--literally'],
+                                    raw).decode().strip()
+        with self.assertRaisesRegex(ab.BindingError, 'noncanonical Git tree ordering'):
+            self.export(self.commit(noncanonical), '.')
 
 
 if __name__ == "__main__":

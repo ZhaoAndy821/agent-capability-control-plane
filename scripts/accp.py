@@ -813,6 +813,92 @@ def cmd_audit(args):
                      'admission_authority':False,'reservation':False,'rows':observed[-1]},indent=2))
     return 2 if any(row['lock'].startswith('INVALID:') for row in observed[-1]) else 0
 
+def cmd_decisions(args):
+    """Read-only aggregate of the decision facts this control plane recorded.
+
+    Normalisation only. It reports what the plane persisted; it never adjudicates,
+    and it never evaluates a counterfactual. Two consequences, both deliberate:
+
+      * `decision`, `rule` and `action` are null on the lifecycle record. Core
+        records those only on the preview invocations (activate / deactivate /
+        recover --dry-run), and those answer "what would happen". This command
+        reports only what the reader boundary has already recorded, so those
+        fields stay null until Core persists a decision record of its own.
+      * `reason_code` is null on capability records, because the plane persists no
+        rejection RECORD carrying a reason code. What it persists is an
+        eligibility state, and `operational_admission` reports the plane's own
+        verdict on that state instead of inventing a code.
+
+    No rejection count is emitted anywhere, on purpose. A count would render
+    "Core never recorded a rejection" as "0 rejections", which is the opposite
+    claim; the `coverage` block names what is derived and what is not recorded.
+
+    The admission verdict is NOT re-implemented here. `approval_ok` is the plane's
+    own pure operational predicate -- the same function
+    `require_operational_eligibility` calls before it uses the word "admitted" --
+    so this command reports that predicate's outcome and its own message. The
+    evidence and dependency checks `require_operational_eligibility` adds are I/O
+    and belong to the materialize path, so a verdict of `eligible` means
+    "the pure operational predicate passed". It never means "materialization
+    would succeed", and the field names say so.
+
+    Every record keeps the raw facts it was derived from under `source_facts`.
+    """
+    owner=reader_owner(args)
+    report=owner.reader_report(lambda:reader_preflight(args),
+        lambda:assert_plain_tree(active_paths(args.project,args.scope)[1]),operation='status')
+    transaction=report.get('transaction')
+    lifecycle={'record_family':'lifecycle','decision':None,'reason_code':report.get('reason_code'),
+               'rule':None,'action':None,'consistency':report.get('consistency'),
+               'lifecycle':report.get('lifecycle'),'scope':report.get('scope'),
+               'transaction_id':None if transaction is None else transaction.get('transaction_id'),
+               'evidence_refs':[],
+               'source_facts':{'observed_at':report.get('observed_at'),'transaction':transaction,
+                               'current_generation':report.get('current_generation'),
+                               'detail':report.get('detail'),
+                               'admission_authority':report.get('admission_authority')}}
+    coverage={'lifecycle_decisions':'complete_for_available_history',
+              'lifecycle_decision_actions':'recorded_only_on_preview_invocations_not_evaluated_here',
+              'capability_lock_approvals':'recorded',
+              'capability_admission_verdicts':'derived_from_the_planes_own_pure_predicate',
+              'capability_rejection_records':'not_persisted_by_core'}
+    records=[]; detail=''
+    try:
+        locks=lock_index(strict=True); idx=catalog_index(strict=True)
+        for i in sorted(locks):
+            l=locks[i]; approval=l.get('approval') or {}
+            conditional=bool(approval.get('partial_or_conditional')); high=bool(approval.get('high_risk'))
+            e=idx.get(i)
+            if e is None:
+                verdict='unknown'; verdict_detail='no catalog entry for this lock'
+            else:
+                try:
+                    approval_ok(e,l); verdict='eligible'; verdict_detail=''
+                except (RuntimeError,ValueError,KeyError,TypeError) as exc:
+                    verdict='refused'; verdict_detail=str(exc)[:512]
+            records.append({'record_family':'capability_admission','capability_id':i,
+                            'lock_approval_state':'approved_with_conditions' if (conditional or high) else 'approved',
+                            'operational_admission':{'verdict':verdict,'predicate':'approval_ok',
+                                                     'detail':verdict_detail},
+                            'reason_code':None,
+                            'evidence_refs':[l['evidence']] if l.get('evidence') else [],
+                            'source_facts':{'lock':l,
+                                            'catalog':None if not e else {
+                                                'adoption':e.get('adoption'),'trust':e.get('trust'),
+                                                'risk':e.get('risk'),'invocation':e.get('invocation'),
+                                                'deployable':(e.get('deploy') or {}).get('deployable')}}})
+    except (RuntimeError,ValueError,OSError,KeyError,json.JSONDecodeError) as exc:
+        # A read failure must not look like "no approvals were recorded".
+        coverage['capability_lock_approvals']='unavailable'; detail=str(exc)[:1024]
+    out={'report_kind':'decision_observations','schema_version':1,
+         'admission_authority':False,'reservation':False,
+         'observed_at':report.get('observed_at'),'project':report.get('project'),
+         'scope':report.get('scope'),'base':report.get('base'),
+         'lifecycle_records':[lifecycle],'capability_admission_records':records,
+         'coverage':coverage,'detail':detail}
+    print(json.dumps(out,indent=2))
+    return 2 if (report.get('reason_code')!='VALIDATED' or detail) else 0
+
 @runtime_operation(create=True)
 def cmd_bootstrap(args):
     # Deliberately copy only when destination absent unless --replace-agents.
@@ -850,6 +936,7 @@ def parser():
         q.set_defaults(fn=fn)
     q=sp.add_parser('recover'); q.add_argument('--project',required=True); q.add_argument('--scope',choices=['project','user'],default='project'); q.add_argument('--dry-run',action='store_true'); q.add_argument('--cleanup',action='store_true'); q.set_defaults(fn=cmd_recover)
     q=sp.add_parser('audit'); q.set_defaults(fn=cmd_audit)
+    q=sp.add_parser('decisions'); q.add_argument('--project',required=True); q.add_argument('--scope',choices=['project','user'],default='project'); q.set_defaults(fn=cmd_decisions)
     q=sp.add_parser('bootstrap'); q.add_argument('--replace-agents',action='store_true'); q.add_argument('--dry-run',action='store_true'); q.set_defaults(fn=cmd_bootstrap)
     q=sp.add_parser('uninstall'); q.add_argument('--yes',action='store_true'); q.add_argument('--dry-run',action='store_true'); q.add_argument('--project'); q.set_defaults(fn=cmd_uninstall)
     return p

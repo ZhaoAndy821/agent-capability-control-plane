@@ -6,7 +6,7 @@ ops=json.loads((ROOT/'modes/operational-modes.json').read_text(encoding='utf-8-s
 ev=json.loads((ROOT/'modes/evaluation-modes.json').read_text(encoding='utf-8-sig'))
 conf=json.loads((ROOT/'registry/conflict-groups.json').read_text(encoding='utf-8-sig'))
 lock=json.loads((ROOT/'lock/sources.lock.json').read_text(encoding='utf-8-sig'))
-version={'name':'Agent Capability Control Plane','version':'2.1.0-rc1','generated_from':['registry/catalog.json','modes/operational-modes.json','modes/evaluation-modes.json','registry/conflict-groups.json','lock/sources.lock.json'],'catalog_entries':len(cat['entries']),'operational_modes':len(ops['modes']),'evaluation_modes':len(ev['modes']),'conflict_groups':len(conf['groups']),'locked_operational_providers':len(lock['sources']),'real_windows_smoke_test':'pending'}
+version={'name':'Agent Capability Control Plane','version':'2.1.0-rc3','generated_from':['registry/catalog.json','modes/operational-modes.json','modes/evaluation-modes.json','registry/conflict-groups.json','lock/sources.lock.json'],'catalog_entries':len(cat['entries']),'operational_modes':len(ops['modes']),'evaluation_modes':len(ev['modes']),'conflict_groups':len(conf['groups']),'locked_operational_providers':len(lock['sources']),'real_windows_smoke_test':'pending'}
 (ROOT/'VERSION.json').write_text(json.dumps(version,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
 lines=['# Generated Registry Summary','',f"- Catalog entries: **{len(cat['entries'])}**",f"- Operational modes: **{len(ops['modes'])}**",f"- Evaluation modes: **{len(ev['modes'])}**",f"- Locked providers: **{len(lock['sources'])}**",'', '## Operational modes','']
 for k,v in ops['modes'].items(): lines.append(f"- `{k}` → {', '.join(v.get('providers',[]))}")
